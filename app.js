@@ -222,13 +222,16 @@ async function callClaudeOrganize({ apiKey, model, noteText, imageDataUrl, stati
    error depending on DeepSeek's current server config. If that happens here,
    the fetch will reject with a generic "Failed to fetch" / network error —
    the fallback is to route this same request through a tiny proxy (e.g. a
-   Cloudflare Worker) instead of calling api.deepseek.com directly. */
+   Cloudflare Worker) instead of calling api.deepseek.com directly.
+
+   ALSO NOTE: DeepSeek's chat/completions endpoint currently rejects OpenAI's
+   image_url content type ("unknown variant `image_url`, expected `text`"),
+   despite some marketing claiming V4 vision support. Until DeepSeek exposes
+   a working, documented image format on this endpoint, this provider is
+   text-only — the photo itself is not sent, only your note text. */
 async function callDeepSeekOrganize({ apiKey, model, noteText, imageDataUrl, stationList }){
-  const userContent = [];
-  userContent.push({ type: "text", text: buildOrganizePrompt(noteText, stationList) });
-  if(imageDataUrl){
-    userContent.push({ type: "image_url", image_url: { url: imageDataUrl } });
-  }
+  const promptText = buildOrganizePrompt(noteText, stationList) +
+    (imageDataUrl ? "\n\n(A photo was attached but DeepSeek's API does not currently support image input here, so base your answer on the note text only. If the note is empty, use \"General\" as the category and a generic title like \"Site photo\" for the title.)" : "");
 
   let res;
   try{
@@ -241,7 +244,7 @@ async function callDeepSeekOrganize({ apiKey, model, noteText, imageDataUrl, sta
       body: JSON.stringify({
         model: model,
         max_tokens: 500,
-        messages: [{ role: "user", content: userContent }]
+        messages: [{ role: "user", content: promptText }]
       })
     });
   }catch(networkErr){
@@ -497,16 +500,22 @@ function initSpeech(){
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.lang = "en-IN";
-  let finalTranscript = "";
-  recognition.onstart = () => { finalTranscript = document.getElementById("noteInput").value; };
+  let baseText = "";
+  recognition.onstart = () => { baseText = document.getElementById("noteInput").value.trim(); };
   recognition.onresult = (e) => {
+    // Rebuild the transcript fresh from the FULL results list every time,
+    // rather than appending onto an accumulator. Android Chrome sometimes
+    // re-sends earlier "final" segments in continuous mode; accumulating
+    // with += causes the text to duplicate and grow on every event.
+    let final = "";
     let interim = "";
-    for(let i = e.resultIndex; i < e.results.length; i++){
+    for(let i = 0; i < e.results.length; i++){
       const t = e.results[i][0].transcript;
-      if(e.results[i].isFinal) finalTranscript += t + " ";
+      if(e.results[i].isFinal) final += t + " ";
       else interim += t;
     }
-    document.getElementById("noteInput").value = (finalTranscript + interim).trim();
+    const combined = [baseText, (final + interim).trim()].filter(Boolean).join(" ");
+    document.getElementById("noteInput").value = combined;
   };
   recognition.onerror = () => stopRecording();
   recognition.onend = () => stopRecording();
@@ -634,7 +643,7 @@ function refreshProviderUI(provider, selectedModel){
     keyLabel.textContent = "DeepSeek API Key (for AI organizing)";
     keyHint.textContent = "Stored only on this device. Get a key at platform.deepseek.com — much cheaper than Anthropic per record.";
     keyInput.placeholder = "sk-...";
-    warning.textContent = "Note: DeepSeek doesn't officially document browser-direct calls. If \"Organize with AI\" fails with a network error, switch back to Anthropic.";
+    warning.textContent = "Note: DeepSeek is text-only here — its API currently rejects photo input, so only your note gets organized. Switch to Anthropic for photo-based organizing. Also unofficial for browser calls — may fail with a network error.";
     warning.className = "status-line err";
     warning.style.textAlign = "left";
   } else {

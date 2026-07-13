@@ -70,20 +70,25 @@ phone in browser storage — nothing goes through a server I control.
 
 Settings → **AI Provider** → DeepSeek. Get a key at platform.deepseek.com
 and paste it in the same key field. DeepSeek's per-record cost is
-meaningfully lower than Anthropic's, and its current models do accept
-photos, so the same "photo + note → organized record" flow works the
-same way.
+meaningfully lower than Anthropic's.
 
-One real caveat: Anthropic explicitly documents and supports calling
-its API directly from a browser with your own key (the app already
-uses this). DeepSeek does not publicly document the same thing — it
-may simply work, or your phone's browser may block the request with a
-CORS error the first time you tap "Organize with AI". If that happens,
-the app will show a network-error message and you can switch the
-provider back to Anthropic in Settings. If you want to keep using
-DeepSeek reliably after that, the fix is a tiny proxy (e.g. a free
-Cloudflare Worker) that forwards the request server-side — say the
-word if you hit this and want that added.
+Two real caveats, confirmed by testing:
+
+- **Text only.** DeepSeek's `chat/completions` endpoint currently
+  rejects photo input (some marketing claims otherwise, but the live
+  API returns an error when a photo is attached). With DeepSeek
+  selected, only your note text gets organized — the photo still
+  saves with the record, it's just not seen by the AI. Switch to
+  Anthropic when you want the AI to read the photo itself (e.g. a
+  photo with no note).
+- **Unofficial browser support.** Anthropic explicitly documents and
+  supports calling its API directly from a browser with your own key.
+  DeepSeek does not — it may work, or your phone's browser may block
+  the request with a CORS error. If that happens, the app shows a
+  network-error message; switch the provider back to Anthropic in
+  Settings. If you want DeepSeek working reliably despite that, the
+  fix is a tiny proxy (e.g. a free Cloudflare Worker) that forwards
+  the request server-side — say the word if you want that added.
 
 ## Part 3 — Optional: sync to Google Drive + Sheets
 
