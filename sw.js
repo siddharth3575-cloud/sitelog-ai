@@ -1,4 +1,4 @@
-const CACHE_NAME = "sitelog-cache-v1";
+const CACHE_NAME = "sitelog-cache-v2";
 const CORE_ASSETS = [
   "./index.html",
   "./app.js",
